@@ -10,7 +10,7 @@ var options = {
  useUnifiedTopology : true
 }
 
-mongoose.connect(`mongodb+srv://${process.env.identifiant}:${process.env.mdp}@cluster0.ky86x.mongodb.net/UnkleBackend?retryWrites=true&w=majority`, options,        
+mongoose.connect(`mongodb+srv://${process.env.IDENTIFIANT}:${process.env.PASSWORD}@cluster0.ky86x.mongodb.net/UnkleBackend?retryWrites=true&w=majority`, options,        
  function(err) {
    console.log(err);
  }
