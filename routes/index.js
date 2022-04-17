@@ -48,8 +48,40 @@ router.post('/new-user', async function(req, res, next) {
     response = true;
 
   } 
-  
-  res.json({ userSaved, response, error });
+  console.log(password)
+  res.json({ userSaved, response, error, password });
 });
+
+/* Connexion à l'espace */
+
+router.post('/signIn', async function(req, res, next){
+  var error = "";
+  var response = false;
+  var token;
+  var password = req.body.password;
+  var user = await userModel.findOne({ email: req.body.email }).populate("contract");
+  
+  console.log("user",user )
+
+  if (password === null || user === null) {
+    response = false;
+    error = "Email ou mot de passe incorrects1"
+    res.json({ response, error });
+  } else if (bcrypt.compareSync(password, user.password)) {
+    response = true;
+    token = uid2(32)
+
+    var updateToken = await userModel.updateOne({ email: req.body.email }, {token: token})
+
+    res.json({ response, user, token });
+  } else if (bcrypt.compareSync(password, user.password) === false) {
+    console.log('password ', password)
+    console.log('user.password ', user.password)
+    response = false;
+    error = "Email ou mot de passe incorrects2"
+    res.json({ response, error });
+  } 
+
+})
 
 module.exports = router;
