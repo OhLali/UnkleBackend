@@ -48,7 +48,7 @@ router.post('/new-user', async function(req, res, next) {
     response = true;
 
   } 
-  //console.log(password)
+ 
   res.json({ userSaved, response, error, password });
 });
 
@@ -142,35 +142,111 @@ if (user === null){
   }
 })
 
+/* L'administrateur veut créer une nouvelle option */
+
+router.post("/option-creation/:token", async function(req,res,next){
+  let error = "";
+  let response = false;
+ 
+  let user = await userModel.findOne({token : req.body.token});
+console.log(user)
+
+if (user === null){ 
+  error = "Nous avons rencontré un problème, contactez le support";
+  response = false;
+  res.json({ response, error });
+} else if (user.userType === "Admin"){
+    let newOption = new optionModel({
+      identifiant : req.body.identifiant,
+      description : req.body.description
+    })
+    let optionSaved = await newOption.save();
+
+    response = true
+
+    res.json({ response, optionSaved }); 
+  } else if (user.userType === "Client") {
+
+    error = "Vous n'êtes pas abilité à réaliser cette action, contactez le support";
+    res.json({ response, error }); 
+
+  } else {
+    
+    error = "Nous avons rencontré un problème, contactez le support";
+    response = false;
+
+    res.json({ response, error });
+  }
+}) 
+
+/* L'administrateur veut créer un nouveau contrat */
+  /* On considère que l'admin a précédement fait appel aux routes all-users et all-option afin d'afficher 
+  la liste entière des utilisateurs et des options pour les afficher et sélectionner dans ces listes les clients et options
+  à ajouter au contrat. On a donc déjà les ID des users et des options qui sont renvoyés ici sous forme d'une chaine de caratères
+  séparés par des virgules */
+  
 router.post("/new-contract", async function(req, res, next){
   let error = "";
   let response = false;
-  let listOfClientsAttached = req.body.clientsAttached // il s'agit d'un tableau d'email des clients qui sont liés au contrat
+  let listOfClientsAttached = req.body.clientsAttached.split(',')
   let tabListOfClientsAttached = [];
+  let listOfOptionsAttached = req.body.optionsAttached.split(',')
+  let tabListOfOptionsAttached = [];
+  let status;
+  let todayDate = new Date();
+  let contractDate = new Date(req.body.startingDate)
   let user = await userModel.findOne({token : req.body.token})
 
-  if (user.userType === "Admin"){
+  if (contractDate == todayDate) {
+    status = "active";
+  } else if (contractDate > todayDate){
+    status = "pending";
+  } else if (contractDate < todayDate){
+    status = "erreur de date"
+  }
+  console.log("status ",status)
 
-    for (let i=0 ; i<listOfClientsAttached.length; i++){
-      console.log(listOfClientsAttached[i])
-      // let client = await userModel.findOne({email: listOfClientsAttached[i]})
-      // tabListOfClientsAttached.push(client._id)
+  if (user.userType === "Admin" ){ // je vérifie bien que mon user est un Admin pour plus de sécurité
 
-    }
-  console.log(tabListOfClientsAttached)
-  //   let newContract = new contractModel({
-  //   contractNumber: "unk_",
-  //   startingDate: req.body.startingDate,
-  //   user: tabListOfClientsAttached,
-  //   option:,
-  // })
+    if (status === "erreur de date"){
+      // si la date est invalide, je renvoie directement l'information sans enregistrer en bdd
+      res.json({ status });
+    } else {
+        // je boucle pour mettre tous mes id users dans un tableau
+        for (let i=0 ; i<listOfClientsAttached.length; i++){
+          tabListOfClientsAttached.push(listOfClientsAttached[i])
+        }
 
- // let contractSaved = await newContract.save();
+        // je boucle pour mettre tous mes id d'options dans un tableau
+        for (let j=0 ; j<listOfOptionsAttached.length; j++){
+          tabListOfOptionsAttached.push(listOfOptionsAttached[j])
+        }
+      console.log('tableaux ',tabListOfClientsAttached, tabListOfOptionsAttached)
+
+      // Je crée le nouveau contrat en BDD
+        let newContract = new contractModel({
+            contractNumber: "unk_"+uid2(10),
+            startingDate: req.body.startingDate,
+            user: tabListOfClientsAttached,
+            option: tabListOfOptionsAttached,
+            status : status
+      })
+
+      let contractSaved = await newContract.save();
+      response = true;
+
+      // j'enregistre la clef étrangère du contrat dans les clients liés au contrat
+
+      for (let i=0; i<tabListOfClientsAttached.length; i++){
+        let user = await userModel.findOne({_id : tabListOfClientsAttached[i]})
+        
+        user.contract.push(contractSaved._id)
+        var idContractSaved = await user.save()
+      }
 
 
-   response = true;
-
-   res.json({ response/*,contractSaved*/ });
+      res.json({ response,contractSaved }); 
+      }
 
   } else if (user.userType === "Client") {
     error = "Vous n'êtes pas abilité à réaliser cette action, contactez le support";
@@ -179,11 +255,11 @@ router.post("/new-contract", async function(req, res, next){
     error = "Nous avons rencontré un problème, contactez le support";
     response = false;
 
-    res.json({ response, error });
-  }
-  
-  
+    res.json({ response, error, status });
+  }  
 
 })
+
+
 
 module.exports = router;

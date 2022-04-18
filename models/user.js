@@ -5,7 +5,7 @@ var UserSchema = mongoose.Schema({
     email : String,
     password : String,
     token : String,
-    contract : { type: mongoose.Schema.Types.ObjectId, ref: 'contacts' },
+    contract : [{ type: mongoose.Schema.Types.ObjectId, ref: 'contracts' }],
 })
 
 module.exports = mongoose.model('users', UserSchema)
