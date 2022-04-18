@@ -59,7 +59,7 @@ router.post('/signIn', async function(req, res, next){
   var response = false;
   var token;
   var password = req.body.password;
-  var user = await userModel.findOne({ email: req.body.email }).populate("contract");
+  var user = await userModel.findOne({ email: req.body.email }).populate("contract")
   
 //  console.log("user",user )
 
@@ -94,13 +94,13 @@ router.get("/all-contracts/:token", async function(req,res,next){
     response = false;
     res.json({ response, error });
  } else if (user.userType === "Admin"){
-    allContracts = await contractModel.find()
+    allContracts = await contractModel.find().populate("option").populate("user")
     response = true;
 
     res.json({ response, allContracts }); 
   } else if (user.userType === "Client") {
 
-    error = "Vous n'êtes pas abilité à réaliser cette action, contactez le support";
+    error = "Vous n'êtes pas habilité à réaliser cette action, contactez le support";
     res.json({ response, error }); 
 
   } else {
@@ -126,11 +126,11 @@ if (user === null){
     allUsers = await userModel.find()
     response = true;
 
-    res.json({ response, allUsers }); 
+    res.json({ response, allUsers });  
 
   } else if (user.userType === "Client") {
 
-    error = "Vous n'êtes pas abilité à réaliser cette action, contactez le support";
+    error = "Vous n'êtes pas habilité à réaliser cette action, contactez le support";
     res.json({ response, error }); 
 
   } else {
@@ -141,6 +141,38 @@ if (user === null){
     res.json({ response, error });
   }
 })
+
+/* L'administrateur veut afficher toutes les options */
+router.get("/all-options/:token", async function(req,res,next){
+  let error = "";
+  let response = false;
+  let allOptions = {};
+  let user = await userModel.findOne({token : req.body.token});
+  console.log(user)
+  if (user === null){ 
+  error = "Nous avons rencontré un problème, contactez le support null";
+  response = false;
+  res.json({ response, error });
+} else if (user.userType === "Admin"){
+    allOptions = await optionModel.find()
+    response = true;
+
+    res.json({ response, allOptions });  
+
+  } else if (user.userType === "Client") {
+
+    error = "Vous n'êtes pas habilité à réaliser cette action, contactez le support";
+    res.json({ response, error }); 
+
+  } else {
+    
+    error = "Nous avons rencontré un problème, contactez le support";
+    response = false;
+
+    res.json({ response, error });
+  }
+})
+
 
 /* L'administrateur veut créer une nouvelle option */
 
@@ -167,7 +199,7 @@ if (user === null){
     res.json({ response, optionSaved }); 
   } else if (user.userType === "Client") {
 
-    error = "Vous n'êtes pas abilité à réaliser cette action, contactez le support";
+    error = "Vous n'êtes pas habilité à réaliser cette action, contactez le support";
     res.json({ response, error }); 
 
   } else {
@@ -194,7 +226,13 @@ router.post("/new-contract", async function(req, res, next){
   let tabListOfOptionsAttached = [];
   let status;
   let todayDate = new Date();
+ 
   let contractDate = new Date(req.body.startingDate)
+
+  let endingDate = contractDate;
+  endingDate.setFullYear(endingDate.getFullYear() + 1);
+
+    console.log("1 an",endingDate)
   let user = await userModel.findOne({token : req.body.token})
 
   if (contractDate == todayDate) {
@@ -229,7 +267,8 @@ router.post("/new-contract", async function(req, res, next){
             startingDate: req.body.startingDate,
             user: tabListOfClientsAttached,
             option: tabListOfOptionsAttached,
-            status : status
+            status : status,
+            endingDate : endingDate
       })
 
       let contractSaved = await newContract.save();
@@ -249,7 +288,7 @@ router.post("/new-contract", async function(req, res, next){
       }
 
   } else if (user.userType === "Client") {
-    error = "Vous n'êtes pas abilité à réaliser cette action, contactez le support";
+    error = "Vous n'êtes pas habilité à réaliser cette action, contactez le support";
     res.json({ response, error });
   } else {
     error = "Nous avons rencontré un problème, contactez le support";
@@ -260,6 +299,129 @@ router.post("/new-contract", async function(req, res, next){
 
 })
 
+/* Le client veut afficher tous ses contrats et leurs options */
 
+router.get("/my-contracts/:token", async function(req, res, next){
+  let error = "";
+  let response = false;
+  let mycontracts;
+  let status;
+  let todayDate = new Date();
+
+  let user = await userModel.findOne({token : req.body.token}).populate('contract')
+
+  /* ne sachant pas mettre à jour une bdd entièrement pour mettre à jour tous les status d'un coup
+  et n'ayant pas assez de temps impartis pour creuser cette partie, j'ai choisi de tout de même faire une mise 
+  à jour quand le user cherche à afficher ses contrats. */
+  if (user.userType === "Client"){
+    for (let i=0 ; i< user.contract.length ; i++){
+      mycontracts = await contractModel.findOne({_id : user.contract[i]}).populate('option')
+
+      if (mycontracts.startingDate <= todayDate && mycontracts.endingDate <= todayDate && mycontracts.status ==! "active"){
+          status = "active"
+          let majStatus = await contractModel.updateOne({_id : mycontracts._id}, {status : status})
+          let majStatusSaved = await majStatus.save();
+
+      } else if (todayDate >= mycontracts.endingDate && status ==! "finished"){
+        status = "finished"
+          let majStatus = await contractModel.updateOne({_id : mycontracts._id}, {status : status})
+          let majStatusSaved = await majStatus.save();
+      } else if ( mycontracts.startingDate >=todayDate && status ==! "pending"){
+        status = "pending"
+          let majStatus = await contractModel.updateOne({_id : mycontracts._id}, {status : status})
+          let majStatusSaved = await majStatus.save();
+      }
+      mycontracts = await contractModel.findOne({_id : user.contract[i]}).populate('option')
+
+    }
+
+    res.json({user, mycontracts})
+  } else {
+    error = "Erreur, mauvaise route"
+    res.json({error})
+  }
+
+})
+
+router.put('/terminate-contract', async function(req, res, next){
+  let error = "";
+  let response = false;
+
+  let idContractToTerminate = req.body.idContractToTerminate;
+  let status;
+  let todayDate = new Date();
+  
+  let endingDate = req.body.endingDate
+
+  let user = await userModel.findOne({token : req.body.token}).populate('contract')
+  let contractToTerminate = await contractModel.findOne({_id : idContractToTerminate})
+
+  console.log(" todayDate",todayDate, contractToTerminate.startingDate)
+
+  if (todayDate <= endingDate && todayDate >= contractToTerminate.startingDate){
+    status = "active"
+  } else if (todayDate >= endingDate){
+    status = "finished"
+  } else if (todayDate < contractToTerminate.startingDate && endingDate > contractToTerminate.startingDate){
+    status = "pending"
+  } else {
+    status = "else"
+  }
+
+  if (user.userType === "Admin"){
+    
+    contractToTerminate = await contractModel.updateOne({_id : idContractToTerminate},{endingDate : endingDate , status : status})
+    response = true
+
+    res.json({response, status})
+  } else if (user.userType === "Client"){
+      for (let i=0 ; i<user.contract.lenght ; i++){
+        console.log("i dans la boucle", i)
+        if (user.contract[i]._id === idContractToTerminate) {
+          contractToTerminate = await contractModel.updateOne({_id : idContractToTerminate},{endingDate : endingDate , status : status})
+         response = true 
+        }
+        res.json({response})
+      }
+  } else {
+    error = "Vous n'êtes pas habilité pour réaliser cette action contactez le support"
+    response = false
+    res.json({response, error})
+  }
+})
+
+
+
+router.delete('/delete-user', async function(req, res, next){
+  let error = "";
+  let response = false;
+  let userToDelete;
+  let user = await userModel.findOne({token : req.body.token})
+
+  if (user.userType === "Admin"){
+    userToDelete = await userModel.deleteOne({email : req.body.emailUserToDelete})
+    
+
+    response = true
+
+    res.json({response})
+
+  } else if (user.userType === "Client"){
+    if (user.email === req.body.emailUserToDelete){
+      userToDelete = await userModel.deleteOne({email : req.body.emailUserToDelete})
+
+      response = true
+
+    res.json({response})
+    } else {
+      error = "Vous n'êtes pas habilité à réaliser cette action, contactez le support"
+      response = false
+
+    res.json({response, error})
+    }
+
+  }
+
+})
 
 module.exports = router;
