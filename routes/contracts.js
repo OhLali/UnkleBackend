@@ -187,6 +187,7 @@ router.post("/new-contract", async function(req, res, next){
   
     console.log(" todayDate",todayDate, contractToTerminate.startingDate)
   
+    // mettre à jour le status
     if (todayDate <= endingDate && todayDate >= contractToTerminate.startingDate){
       status = "active"
     } else if (todayDate >= endingDate){
@@ -204,8 +205,9 @@ router.post("/new-contract", async function(req, res, next){
   
       res.json({response, status})
     } else if (user.userType === "Client"){
+
         for (let i=0 ; i<user.contract.lenght ; i++){
-          console.log("i dans la boucle", i)
+          // je boucle pour que l'on vérifie bien que le client est bien sur le contrat qu'il demande à résilier
           if (user.contract[i]._id === idContractToTerminate) {
             contractToTerminate = await contractModel.updateOne({_id : idContractToTerminate},{endingDate : endingDate , status : status})
            response = true 
